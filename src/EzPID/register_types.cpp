@@ -4,10 +4,15 @@
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/godot.hpp>
 
+#include "pid_controller.hpp"
+
 void initialize_pid(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
+
+    GDREGISTER_CLASS(ez_pid::PID);
+    GDREGISTER_CLASS(ez_pid::PIDController);
 }
 
 void uninitialize_pid(ModuleInitializationLevel p_level) {

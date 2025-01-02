@@ -1,0 +1,16 @@
+{
+    "files.associations": {
+        "*.inc": "cpp",
+        "algorithm": "cpp",
+        "limits": "cpp",
+        "utility": "cpp",
+        "xutility": "cpp",
+        "charconv": "cpp",
+        "format": "cpp",
+        "memory": "cpp",
+        "vector": "cpp",
+        "xlocale": "cpp",
+        "xmemory": "cpp",
+        "xstring": "cpp"
+    }
+}
