@@ -13,7 +13,7 @@ env = SConscript("godot-cpp/SConstruct")
 # - LINKFLAGS are for linking flags
 
 plugin = "EzPID"
-lib_name = "ez_fsm"
+lib_name = "ez_pid"
 bin_folder = "addons/" + plugin + "/bin/"
 
 # tweak this if you want to use different folders, or more folders, to store your source code in.

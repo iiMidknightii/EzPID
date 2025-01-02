@@ -1,0 +1,23 @@
+[gd_scene load_steps=3 format=3 uid="uid://dquitovi2l4xs"]
+
+[ext_resource type="Script" path="res://tests/pid_with_gravity.gd" id="1_qq2ve"]
+
+[sub_resource type="PID" id="PID_2xeml"]
+state_length = 9
+integration_enabled = true
+p_gain = Vector3(12, 12, 12)
+i_gain = Vector3(2, 2, 2)
+d_gain = Vector3(8, 8, 8)
+
+[node name="PIDController" type="PIDController" node_paths=PackedStringArray("controlled_node")]
+pid_gains = SubResource("PID_2xeml")
+error_integration_limit = null
+control_output_limit = null
+prevent_derivative_kick = true
+controlled_node = NodePath("Marker3D")
+controlled_property = &"position"
+target_value = Vector3(0.727825, 0, 4.94674)
+script = ExtResource("1_qq2ve")
+
+[node name="Marker3D" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.45571, 1.44351, 2.80308)

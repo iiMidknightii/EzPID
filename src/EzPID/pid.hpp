@@ -37,6 +37,8 @@ public:
     void hide_state_length(bool p_hide);
 
 protected:
+    bool _property_can_revert(const StringName &p_prop) const;
+    bool _property_get_revert(const StringName &p_prop, Variant &r_ret) const;
     void _validate_property(PropertyInfo &p_prop) const;
     static void _bind_methods();
 

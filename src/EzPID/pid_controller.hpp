@@ -52,9 +52,14 @@ public:
     Variant update_state(const Variant &p_value, const Variant &p_target, double p_delta);
     void reset();
 
-    GDVIRTUAL2R(Variant, _integrate_state, Variant, double)
+    GDVIRTUAL2(_integrate_state, Dictionary, double)
 
 protected:
+    void _get_property_list(List<PropertyInfo> *p_list) const;
+    bool _get(const StringName &p_prop, Variant &r_ret) const;
+    bool _set(const StringName &p_prop, const Variant &p_value);
+    bool _property_can_revert(const StringName &p_prop) const;
+    bool _property_get_revert(const StringName &p_prop, Variant &r_ret) const;
     void _validate_property(PropertyInfo &p_prop) const;
     void _notification(int p_what);
     static void _bind_methods();

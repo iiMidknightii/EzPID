@@ -30,6 +30,8 @@ bool PID::is_correct_length(const Variant &p_value) const {
 
 void PID::set_state_length(StateLength p_length) {
     if (p_length != state_length) {
+        ERR_FAIL_COND(p_length < SCALAR || p_length > VECTOR4);
+
         state_length = p_length;
         p_gain = get_zero();
         i_gain = get_zero();
@@ -80,9 +82,27 @@ void PID::hide_state_length(bool p_hide) {
     }
 }
 
+bool PID::_property_can_revert(const StringName &p_prop) const {
+    if (Array::make("p_gain", "d_gain", "i_gain").has(p_prop)) {
+        return true;
+    }
+
+    return false;
+}
+
+bool PID::_property_get_revert(const StringName &p_prop, Variant &r_ret) const {
+    if (Array::make("p_gain", "d_gain", "i_gain").has(p_prop)) {
+        r_ret = get_zero();
+        return true;
+    }
+
+    return false;
+}
+
+
 void PID::_validate_property(PropertyInfo &p_prop) const {
     if (Array::make("p_gain", "d_gain", "i_gain").has(p_prop.name)) {
-        p_prop.type = static_cast<Variant::Type>(state_length);
+        p_prop.type = Variant::Type(state_length);
         if (p_prop.name == StringName("i_gain")) {
             p_prop.usage = integration_enabled ? PROPERTY_USAGE_DEFAULT : PROPERTY_USAGE_STORAGE;
         }
@@ -94,7 +114,7 @@ void PID::_validate_property(PropertyInfo &p_prop) const {
 void PID::_bind_methods() {
     ClassDB::bind_method(D_METHOD("set_state_length", "length"), &PID::set_state_length);
     ClassDB::bind_method(D_METHOD("get_state_length"), &PID::get_state_length);
-    ClassDB::bind_method(D_METHOD("enabled_integration", "enable"), &PID::enable_integration);
+    ClassDB::bind_method(D_METHOD("enable_integration", "enable"), &PID::enable_integration);
     ClassDB::bind_method(D_METHOD("is_integration_enabled"), &PID::is_integration_enabled);
     ClassDB::bind_method(D_METHOD("set_p_gain", "p_gain"), &PID::set_p_gain);
     ClassDB::bind_method(D_METHOD("get_p_gain"), &PID::get_p_gain);
@@ -103,10 +123,14 @@ void PID::_bind_methods() {
     ClassDB::bind_method(D_METHOD("set_d_gain", "d_gain"), &PID::set_d_gain);
     ClassDB::bind_method(D_METHOD("get_d_gain"), &PID::get_d_gain);
 
-    ADD_PROPERTY(PropertyInfo(Variant::INT, "state_length", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_CLASS_IS_ENUM, "PID.StateLength"), "set_state_length", "get_state_length");
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "state_length", PROPERTY_HINT_ENUM, "Scalar:3,Vector2:5,Vector3:9,Vector4:12"), "set_state_length", "get_state_length");
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "integration_enabled"), "enable_integration", "is_integration_enabled");
-    ADD_GROUP("Gains", "");
-    ADD_PROPERTY(PropertyInfo(Variant::NIL, "p_gain"), "set_p_gain", "get_p_gain");
-    ADD_PROPERTY(PropertyInfo(Variant::NIL, "i_gain"), "set_i_gain", "get_i_gain");
-    ADD_PROPERTY(PropertyInfo(Variant::NIL, "d_gain"), "set_d_gain", "get_d_gain");
+    ADD_PROPERTY(PropertyInfo(Variant::NIL, "p_gain", PROPERTY_HINT_LINK), "set_p_gain", "get_p_gain");
+    ADD_PROPERTY(PropertyInfo(Variant::NIL, "i_gain", PROPERTY_HINT_LINK), "set_i_gain", "get_i_gain");
+    ADD_PROPERTY(PropertyInfo(Variant::NIL, "d_gain", PROPERTY_HINT_LINK), "set_d_gain", "get_d_gain");
+
+    BIND_ENUM_CONSTANT(SCALAR);
+    BIND_ENUM_CONSTANT(VECTOR2);
+    BIND_ENUM_CONSTANT(VECTOR3);
+    BIND_ENUM_CONSTANT(VECTOR4);
 }
