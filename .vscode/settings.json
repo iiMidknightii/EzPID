@@ -11,6 +11,7 @@
         "vector": "cpp",
         "xlocale": "cpp",
         "xmemory": "cpp",
-        "xstring": "cpp"
+        "xstring": "cpp",
+        "system_error": "cpp"
     }
 }

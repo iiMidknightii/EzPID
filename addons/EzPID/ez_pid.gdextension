@@ -34,3 +34,5 @@ ios.release = {
 }
 
 [icons]
+PID = "res://addons/EzPID/icons/PID.svg"
+PIDController = "res://addons/EzPID/icons/PIDController.svg"

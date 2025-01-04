@@ -1,4 +1,5 @@
 #include "pid_controller.hpp"
+#include <godot_cpp/classes/engine.hpp>
 
 using namespace godot;
 using namespace ez_pid;
@@ -90,6 +91,18 @@ bool PIDController::is_preventing_derivative_kick() const {
     return preventing_derivative_kick;
 }
 
+void PIDController::enable_error_integration_limit(bool p_enable) {
+    limiting_error_sum = p_enable;
+    if (limiting_error_sum) {
+        error_sum = _limit(error_sum, error_sum_limit);
+    }
+    notify_property_list_changed();
+}
+
+bool PIDController::is_limiting_error_integration() const {
+    return limiting_error_sum;
+}
+
 void PIDController::set_error_integration_limit(const Variant &p_limit) {
     if (p_limit != error_sum_limit) {
         if (pid.is_valid()) {
@@ -97,7 +110,7 @@ void PIDController::set_error_integration_limit(const Variant &p_limit) {
         }
 
         error_sum_limit = p_limit;
-        if (EGT(error_sum_limit, 0.0)) {
+        if (limiting_error_sum) {
             error_sum = _limit(error_sum, error_sum_limit);
         }
     }
@@ -105,6 +118,23 @@ void PIDController::set_error_integration_limit(const Variant &p_limit) {
 
 Variant PIDController::get_error_integration_limit() const {
     return error_sum_limit;
+}
+
+void PIDController::set_error_integration_decay(double p_decay) {
+    error_sum_decay = Math::max(p_decay, 0.0);
+}
+
+double PIDController::get_error_integration_decay() const {
+    return error_sum_decay;
+}
+
+void PIDController::enable_control_output_limit(bool p_enable) {
+    limiting_control = p_enable;
+    notify_property_list_changed();
+}
+
+bool PIDController::is_limiting_control_output() const {
+    return limiting_control;
 }
 
 void PIDController::set_control_output_limit(const Variant &p_limit) {
@@ -117,6 +147,14 @@ void PIDController::set_control_output_limit(const Variant &p_limit) {
 
 Variant PIDController::get_control_output_limit() const {
     return control_limit;
+}
+
+void PIDController::set_run_in_editor(bool p_run) {
+    run_in_editor = p_run;
+}
+
+bool PIDController::get_run_in_editor() const {
+    return run_in_editor;
 }
 
 void PIDController::set_controlled_node(Node *p_node) {
@@ -172,11 +210,37 @@ Variant PIDController::get_target_value() const {
     return target;
 }
 
+void PIDController::set_value(const Variant &p_value) {
+    value = p_value;
+}
+
+Variant PIDController::get_value() const {
+    return value;
+}
+
+void PIDController::set_value_dot(const Variant &p_value_dot) {
+    value_dot = p_value_dot;
+}
+
+Variant PIDController::get_value_dot() const {
+    return value_dot;
+}
+
+Variant PIDController::get_error() const {
+    return error_prev;
+}
+
+Variant PIDController::get_sum_error() const {
+    return error_sum;
+}
+
 Variant PIDController::calculate_control_output(const Variant &p_value, const Variant &p_target, double p_delta) {
     ERR_FAIL_NULL_V(pid, Variant());
 
     ERR_FAIL_COND_V_MSG(!pid->is_correct_length(p_value) || !pid->is_correct_length(p_target), pid->get_zero(), 
         "Parameter value and target must be the same length as the PID state length.");
+
+    error_sum = EMUL(error_sum, Math::exp(-error_sum_decay * p_delta));
 
     Variant delta_target;
     Variant error;
@@ -197,7 +261,7 @@ Variant PIDController::calculate_control_output(const Variant &p_value, const Va
     Variant d_out = EMUL(pid->get_d_gain(), EDIV(preventing_derivative_kick ? ESUB(delta_error, delta_target) : delta_error, p_delta));
 
     Variant control_output = EADD(EADD(p_out, i_out), d_out);
-    if (EGT(control_limit, 0.0)) {
+    if (limiting_control) {
         control_output = _limit(control_output, control_limit);
     }
 
@@ -205,6 +269,9 @@ Variant PIDController::calculate_control_output(const Variant &p_value, const Va
     error_prev = error;
     if (pid->is_integration_enabled()) {
         error_sum = EADD(error_sum, EMUL(error, p_delta));
+        if (limiting_error_sum) {
+            error_sum = _limit(error_sum, error_sum_limit);
+        }
     }
 
     return control_output;
@@ -215,12 +282,9 @@ Variant PIDController::update_state(const Variant &p_value, const Variant &p_tar
     ERR_FAIL_COND_V_MSG(!pid->is_correct_length(p_value) || !pid->is_correct_length(p_target), pid->get_zero(), 
         "Parameter value and target must be the same length as the PID state length.");
 
-    Dictionary integrate_out;
-    integrate_out[StringName("value")] = p_value;
-    integrate_out[StringName("value_dot")] = value_dot;
-    GDVIRTUAL_CALL(_integrate_state, integrate_out, p_delta);
-    Variant value = integrate_out.get(StringName("value"), p_value);
-    value_dot = integrate_out.get(StringName("value_dot"), value_dot);
+    value = p_value;
+    target = p_target;
+    GDVIRTUAL_CALL(_integrate_state, p_delta);
 
     Variant control_output = calculate_control_output(value, p_target, p_delta);
 
@@ -235,15 +299,12 @@ Variant PIDController::update_state(const Variant &p_value, const Variant &p_tar
         value = EADD(value, delta_value);
     }
 
-    if (_get_magnitude(ESUB(p_target, value)) <= 1e-6) {
-        emit_signal("converged");
-    }
-
     return value;
 }
 
 void PIDController::reset() {
-    Variant zero = pid.is_valid() ? pid->get_zero() : 0.0;
+    Variant zero = pid.is_valid() ? pid->get_zero() : Variant(0.0);
+    value = zero;
     value_dot = zero;
     target = zero;
     target_prev = zero;
@@ -253,13 +314,12 @@ void PIDController::reset() {
 
 
 void PIDController::_update_state_length() {
-    if (pid.is_valid()) {
-        if (nullptr == controlled_node || !cached_properties.has(controlled_property)) {
-            pid->set_state_length(PID::SCALAR);
-        } else {
-            pid->set_state_length(PID::StateLength(int(cached_properties[controlled_property])));
-        }
+    if (pid.is_valid() && nullptr != controlled_node && cached_properties.has(controlled_property)) {
+        pid->set_state_length(PID::StateLength(int(cached_properties[controlled_property])));
     }
+    Variant zero = pid.is_valid() ? pid->get_zero() : Variant(0.0);
+    error_sum_limit = zero;
+    control_limit = zero;
 
     reset();
     notify_property_list_changed();
@@ -270,17 +330,17 @@ Variant PIDController::_eval_variant(Variant::Operator p_op, const Variant &p_a,
     Variant out;
     Variant::evaluate(p_op, p_a, p_b, out, is_valid);
     if (!is_valid) {
-        out = pid.is_valid() ? pid->get_zero() : 0.0;
+        out = pid.is_valid() ? pid->get_zero() : Variant(0.0);
     }
 
     return out;
 }
 
 Variant PIDController::_get_angular_difference(const Variant &p_value1, const Variant &p_value2) const {
-    ERR_FAIL_COND_V(p_value1.get_type() != p_value2.get_type(), pid.is_valid() ? pid->get_zero() : 0.0);
+    ERR_FAIL_COND_V(p_value1.get_type() != p_value2.get_type(), pid.is_valid() ? pid->get_zero() : Variant(0.0));
 
     Variant out;
-    switch (p_value1.get_type()) {
+    switch (PID::StateLength(p_value1.get_type())) {
         case PID::SCALAR: {
             out = angle_difference(p_value1, p_value2);
         } break;
@@ -310,33 +370,38 @@ Variant PIDController::_get_angular_difference(const Variant &p_value1, const Va
                 angle_difference(val1.w, val2.w));
         } break;
         default:
-            ERR_FAIL_V_MSG(pid.is_valid() ? pid->get_zero() : 0.0, "Somehow passed in angles are not of correct type.");
+            ERR_FAIL_V_MSG(pid.is_valid() ? pid->get_zero() : Variant(0.0), "Somehow passed in angles are not of correct type.");
     }
 
     return out;
 }
 
 Variant PIDController::_limit(const Variant &p_value, const Variant &p_limit) const {
-    double magnitude = _get_magnitude(p_limit);    
+    ERR_FAIL_COND_V(p_value.get_type() != p_limit.get_type(), pid.is_valid() ? pid->get_zero() : Variant(0.0));
+    #define LIMIT(a, b) Math::clamp(double(a), -double(b), double(b))
 
     Variant out;
-    switch (p_value.get_type()) {
+    switch (PID::StateLength(p_value.get_type())) {
         case PID::SCALAR: {
-            double val = double(p_value);
-            out = Math::sign(val) * Math::min(Math::abs(val), magnitude);
+            out = LIMIT(p_value, p_limit);
         } break;
         case PID::VECTOR2: {
-            out = Vector2(p_value).limit_length(magnitude);
+            Vector2 in = p_value;
+            Vector2 limit = p_limit;
+            out = Vector2(LIMIT(in.x, limit.x), LIMIT(in.y, limit.y));
         } break;
         case PID::VECTOR3: {
-            out = Vector3(p_value).limit_length(magnitude);
+            Vector3 in = p_value;
+            Vector3 limit = p_limit;
+            out = Vector3(LIMIT(in.x, limit.x), LIMIT(in.y, limit.y), LIMIT(in.z, limit.z));
         } break;
         case PID::VECTOR4: {
-            Vector4 val = Vector4(p_value);
-            out = val.length() > magnitude ? val.normalized() * magnitude : val;
+            Vector4 in = p_value;
+            Vector4 limit = p_limit;
+            out = Vector4(LIMIT(in.x, limit.x), LIMIT(in.y, limit.y), LIMIT(in.z, limit.z), LIMIT(in.w, limit.w));
         } break;
         default:
-            ERR_FAIL_V_MSG(pid.is_valid() ? pid->get_zero() : 0.0, "Somehow passed in value is not of correct type.");
+            ERR_FAIL_V_MSG(pid.is_valid() ? pid->get_zero() : Variant(0.0), "Somehow passed in value is not of correct type.");
     }
 
     return out;
@@ -344,7 +409,7 @@ Variant PIDController::_limit(const Variant &p_value, const Variant &p_limit) co
 
 double PIDController::_get_magnitude(const Variant &p_value) const {
     double magnitude = 0;
-    switch (p_value.get_type()) {
+    switch (PID::StateLength(p_value.get_type())) {
         case PID::SCALAR: {
             magnitude = p_value;
         } break;
@@ -400,7 +465,14 @@ bool PIDController::_set(const StringName &p_prop, const Variant &p_value) {
 }
 
 bool PIDController::_property_can_revert(const StringName &p_prop) const {
-    if (p_prop == StringName("state_length")) {
+    if (    p_prop == StringName("state_length") ||
+            p_prop == StringName("error_integration_limit") ||
+            p_prop == StringName("control_output_limit") ||
+            p_prop == StringName("target_value") ||
+            p_prop == StringName("value") ||
+            p_prop == StringName("value_dot") ||
+            p_prop == StringName("error") ||
+            p_prop == StringName("sum_error")) {
         return true;
     }
 
@@ -409,7 +481,18 @@ bool PIDController::_property_can_revert(const StringName &p_prop) const {
 
 bool PIDController::_property_get_revert(const StringName &p_prop, Variant &r_ret) const {
     if (p_prop == StringName("state_length")) {
-        r_ret = pid.is_valid() ? pid->get_zero() : 0.0;
+        r_ret = PID::SCALAR;
+        return true;
+    } else if (
+        p_prop == StringName("error_integration_limit") ||
+        p_prop == StringName("control_output_limit") || 
+        p_prop == StringName("target_value") ||
+        p_prop == StringName("value") ||
+        p_prop == StringName("value_dot") ||
+        p_prop == StringName("error") ||
+        p_prop == StringName("sum_error")
+    ) {
+        r_ret = pid.is_valid() ? pid->get_zero() : Variant(0.0);
         return true;
     }
 
@@ -417,30 +500,39 @@ bool PIDController::_property_get_revert(const StringName &p_prop, Variant &r_re
 }
 
 void PIDController::_validate_property(PropertyInfo &p_prop) const {
-    if (
-            p_prop.name == StringName("error_integration_limit") ||
-            p_prop.name == StringName("control_output_limit") || 
-            p_prop.name == StringName("target_value")
-    ) {
-        if (
-                pid.is_null() || 
-                p_prop.name == StringName("error_integration_limit") && !pid->is_integration_enabled() ||
-                p_prop.name == StringName("target_value") && controlled_node == nullptr
-        ) {
+    if ((
+            Array::make(StringName("error_integration_limit_enabled"), StringName("error_integration_decay")).has(p_prop.name) &&
+            (pid.is_null() || !pid->is_integration_enabled())
+        ) || (
+            p_prop.name == StringName("error_integration_limit") && !limiting_error_sum
+        ) || (
+            p_prop.name == StringName("control_output_limit_enabled") && !limiting_control
+        ) || (
+            p_prop.name == StringName("target_value") && (controlled_node == nullptr || !cached_properties.has(controlled_property))
+        ) || (
+            Array::make(StringName("controlled_node"), StringName("controlled_property")).has(p_prop.name) && 
+            process_method == PID_PROCESS_MANUAL)) {
+        p_prop.usage = PROPERTY_USAGE_NONE;
+    } 
+
+    if (Array::make(
+            StringName("error_integration_limit"),
+            StringName("control_output_limit"),
+            StringName("target_value"),
+            StringName("value"),
+            StringName("value_dot"),
+            StringName("error"),
+            StringName("sum_error")).has(p_prop.name)) {
+        if (pid.is_null()) {
             p_prop.usage = PROPERTY_USAGE_NONE;
         } else {
             p_prop.type = Variant::Type(pid->get_state_length());
         }
-    } else if (
-            p_prop.name == StringName("controlled_node") ||
-            p_prop.name == StringName("controlled_property")
-    ) {
-        if (process_method == PID_PROCESS_MANUAL) {
-            p_prop.usage = PROPERTY_USAGE_NONE;
-        } else if (p_prop.name == StringName("controlled_property")) {
-            p_prop.hint_string = String(",").join(cached_properties.keys());
-            p_prop.usage = controlled_node == nullptr ? PROPERTY_USAGE_NONE : PROPERTY_USAGE_DEFAULT;
-        }
+    }
+
+    if (p_prop.name == StringName("controlled_property")) {
+        p_prop.hint_string = String(",").join(cached_properties.keys());
+        p_prop.usage = controlled_node == nullptr ? PROPERTY_USAGE_NONE : PROPERTY_USAGE_DEFAULT;
     }
 }
 
@@ -465,7 +557,9 @@ void PIDController::_notification(int p_what) {
 
         case NOTIFICATION_INTERNAL_PROCESS:
         case NOTIFICATION_INTERNAL_PHYSICS_PROCESS: {
-            if (nullptr == controlled_node || !cached_properties.has(controlled_property)) {
+            if (    
+                    (!run_in_editor && Engine::get_singleton()->is_editor_hint()) ||
+                    nullptr == controlled_node || !cached_properties.has(controlled_property)) {
                 break;
             }
 
@@ -492,27 +586,45 @@ void PIDController::_bind_methods() {
     ClassDB::bind_method(D_METHOD("is_preventing_overshoot"), &PIDController::is_preventing_overshoot);
     ClassDB::bind_method(D_METHOD("set_prevent_derivative_kick", "prevent_kick"), &PIDController::set_prevent_derivative_kick);
     ClassDB::bind_method(D_METHOD("is_preventing_derivative_kick"), &PIDController::is_preventing_derivative_kick);
+    ClassDB::bind_method(D_METHOD("enable_error_integration_limit", "enable"), &PIDController::enable_error_integration_limit);
+    ClassDB::bind_method(D_METHOD("is_limiting_error_integration"), &PIDController::is_limiting_error_integration);
     ClassDB::bind_method(D_METHOD("set_error_integration_limit", "integration_limit"), &PIDController::set_error_integration_limit);
     ClassDB::bind_method(D_METHOD("get_error_integration_limit"), &PIDController::get_error_integration_limit);
+    ClassDB::bind_method(D_METHOD("set_error_integration_decay", "decay"), &PIDController::set_error_integration_decay);
+    ClassDB::bind_method(D_METHOD("get_error_integration_decay"), &PIDController::get_error_integration_decay);
+    ClassDB::bind_method(D_METHOD("enable_control_output_limit"), &PIDController::enable_control_output_limit);
+    ClassDB::bind_method(D_METHOD("is_limiting_control_output"), &PIDController::is_limiting_control_output);
     ClassDB::bind_method(D_METHOD("set_control_output_limit", "output_limit"), &PIDController::set_control_output_limit);
     ClassDB::bind_method(D_METHOD("get_control_output_limit"), &PIDController::get_control_output_limit);
+    ClassDB::bind_method(D_METHOD("set_run_in_editor", "run_in_editor"), &PIDController::set_run_in_editor);
+    ClassDB::bind_method(D_METHOD("get_run_in_editor"), &PIDController::get_run_in_editor);
     ClassDB::bind_method(D_METHOD("set_controlled_node", "node"), &PIDController::set_controlled_node);
     ClassDB::bind_method(D_METHOD("get_controlled_node"), &PIDController::get_controlled_node);
     ClassDB::bind_method(D_METHOD("set_controlled_property", "property_name"), &PIDController::set_controlled_property);
     ClassDB::bind_method(D_METHOD("get_controlled_property"), &PIDController::get_controlled_property);
     ClassDB::bind_method(D_METHOD("set_target_value", "target"), &PIDController::set_target_value);
     ClassDB::bind_method(D_METHOD("get_target_value"), &PIDController::get_target_value);
+    ClassDB::bind_method(D_METHOD("set_value", "value"), &PIDController::set_value);
+    ClassDB::bind_method(D_METHOD("get_value"), &PIDController::get_value);
+    ClassDB::bind_method(D_METHOD("set_value_dot", "value_dot"), &PIDController::set_value_dot);
+    ClassDB::bind_method(D_METHOD("get_value_dot"), &PIDController::get_value_dot);
+    ClassDB::bind_method(D_METHOD("get_error"), &PIDController::get_error);
+    ClassDB::bind_method(D_METHOD("get_sum_error"), &PIDController::get_sum_error);
     ClassDB::bind_method(D_METHOD("calculate_control_output", "current_value", "target_value", "delta"), &PIDController::calculate_control_output);
     ClassDB::bind_method(D_METHOD("update_state", "current_value", "target_value", "delta"), &PIDController::update_state);
     ClassDB::bind_method(D_METHOD("reset"), &PIDController::reset);
-    GDVIRTUAL_BIND(_integrate_state, "current_state", "delta")
+    GDVIRTUAL_BIND(_integrate_state, "delta")
 
     ADD_GROUP("PID", "");
     ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "pid_gains", PROPERTY_HINT_RESOURCE_TYPE, "PID", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_EDITOR_INSTANTIATE_OBJECT), "set_pid", "get_pid");
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "error_integration_limit_enabled"), "enable_error_integration_limit", "is_limiting_error_integration");
     ADD_PROPERTY(PropertyInfo(Variant::NIL, "error_integration_limit", PROPERTY_HINT_LINK), "set_error_integration_limit", "get_error_integration_limit");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "error_integration_decay", PROPERTY_HINT_RANGE, "0.0,100.0,0.01,or_greater"), "set_error_integration_decay", "get_error_integration_decay");
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "control_output_limit_enabled"), "enable_control_output_limit", "is_limiting_control_output");
     ADD_PROPERTY(PropertyInfo(Variant::NIL, "control_output_limit", PROPERTY_HINT_LINK), "set_control_output_limit", "get_control_output_limit");
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "prevent_derivative_kick"), "set_prevent_derivative_kick", "is_preventing_derivative_kick");
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "prevent_overshoot"), "set_prevent_overshoot", "is_preventing_overshoot");
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "run_in_editor"), "set_run_in_editor", "get_run_in_editor");
 
     ADD_GROUP("Control", "");
     ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "controlled_node", PROPERTY_HINT_NODE_TYPE), "set_controlled_node", "get_controlled_node");
@@ -521,7 +633,10 @@ void PIDController::_bind_methods() {
     ADD_PROPERTY(PropertyInfo(Variant::NIL, "target_value"), "set_target_value", "get_target_value");
     ADD_PROPERTY(PropertyInfo(Variant::INT, "update_method", PROPERTY_HINT_ENUM, "Physics,Idle,Manual", PROPERTY_USAGE_DEFAULT), "set_update_method", "get_update_method");
 
-    ADD_SIGNAL(MethodInfo("converged"));
+    ADD_PROPERTY(PropertyInfo(Variant::NIL, "value", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NONE), "set_value", "get_value");
+    ADD_PROPERTY(PropertyInfo(Variant::NIL, "value_dot", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NONE), "set_value_dot", "get_value_dot");
+    ADD_PROPERTY(PropertyInfo(Variant::NIL, "error", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NONE), "", "get_error");
+    ADD_PROPERTY(PropertyInfo(Variant::NIL, "sum_error", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NONE), "", "get_sum_error");
 
     BIND_ENUM_CONSTANT(PID_PROCESS_PHYSICS);
     BIND_ENUM_CONSTANT(PID_PROCESS_IDLE);

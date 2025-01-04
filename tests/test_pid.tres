@@ -1,0 +1,8 @@
+[gd_resource type="PID" format=3 uid="uid://bmhwvi1wipgfy"]
+
+[resource]
+state_length = 9
+integration_enabled = true
+p_gain = Vector3(24, 24, 24)
+i_gain = Vector3(1, 1, 1)
+d_gain = Vector3(16, 16, 16)

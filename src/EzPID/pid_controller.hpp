@@ -33,11 +33,23 @@ public:
     void set_prevent_derivative_kick(bool p_prevent);
     bool is_preventing_derivative_kick() const;
 
+    void enable_error_integration_limit(bool p_enable);
+    bool is_limiting_error_integration() const;
+
     void set_error_integration_limit(const Variant &p_limit);
     Variant get_error_integration_limit() const;
 
+    void set_error_integration_decay(double p_decay);
+    double get_error_integration_decay() const;
+
+    void enable_control_output_limit(bool p_enable);
+    bool is_limiting_control_output() const;
+
     void set_control_output_limit(const Variant &p_limit);
     Variant get_control_output_limit() const;
+
+    void set_run_in_editor(bool p_run);
+    bool get_run_in_editor() const;
 
     void set_controlled_node(Node *p_node);
     Node *get_controlled_node() const;
@@ -48,11 +60,18 @@ public:
     void set_target_value(const Variant &p_val);
     Variant get_target_value() const;
 
+    void set_value(const Variant &p_value);
+    Variant get_value() const;
+    void set_value_dot(const Variant &p_value_dot);
+    Variant get_value_dot() const;
+    Variant get_error() const;
+    Variant get_sum_error() const;
+
     Variant calculate_control_output(const Variant &p_value, const Variant &p_target, double p_delta);
     Variant update_state(const Variant &p_value, const Variant &p_target, double p_delta);
     void reset();
 
-    GDVIRTUAL2(_integrate_state, Dictionary, double)
+    GDVIRTUAL1(_integrate_state, double)
 
 protected:
     void _get_property_list(List<PropertyInfo> *p_list) const;
@@ -73,14 +92,19 @@ private:
     bool value_is_angle = false;
     bool preventing_overshoot = false;
     bool preventing_derivative_kick = false;
-    Variant error_sum_limit;
-    Variant control_limit;
+    bool run_in_editor = false;
+    bool limiting_error_sum = false;
+    Variant error_sum_limit = -1;
+    double error_sum_decay = 0;
+    bool limiting_control = false;
+    Variant control_limit = -1;
 
     bool is_controlling_node = false;
     Node *controlled_node = nullptr;
     Dictionary cached_properties;
     String controlled_property;
 
+    Variant value = 0;
     Variant value_dot = 0;
     Variant target = 0;
     Variant target_prev = 0;

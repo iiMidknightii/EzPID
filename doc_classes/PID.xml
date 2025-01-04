@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="PID" inherits="Resource" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
+	<brief_description>
+		Resource class for saving and loading gains for [PIDController] objects.
+	</brief_description>
+	<description>
+		This class contains the gains for Proportional, Integral, Derivative controllers.  The gains can be saved separately as their own resource so they may be reused between different controllers.
+	</description>
+	<tutorials>
+		[url=https://en.wikipedia.org/wiki/Proportional%E2%80%93integral%E2%80%93derivative_controller]Article about PID controller basics.[/url]
+	</tutorials>
+	<members>
+		<member name="d_gain" type="Variant" setter="set_d_gain" getter="get_d_gain" default="0">
+			The derivative gain.  Can be a float, Vector2, Vector3, or Vector4 depending on the value of [member state_length].  Tuning this number determines how much the controller will resist a change in error.  Most commonly, a higher number for derivative gain will prevent overshoot at the cost of slowing down convergence.
+		</member>
+		<member name="i_gain" type="Variant" setter="set_i_gain" getter="get_i_gain" default="0">
+			The integral gain.  This property only appears in the editor if [member integration_enabled] is true.  Can be a float, Vector2, Vector3, or Vector4 depending on the value of [member state_length].  Tuning this number determines how much the controller will compensate when an outside disturbance prevent converging to zero error.  For instance, if acceleration due to gravity causes the controller to continually miss convergence, increasing this number will start to compensate for that constant error-over-time.
+		</member>
+		<member name="integration_enabled" type="bool" setter="enable_integration" getter="is_integration_enabled" default="false">
+			Unless outside forces/accelerations are present, integration can be disabled for most PID controllers.  Therefore, only set this property to true if you expect disturbances (such as gravity) that you wish for the controller to overcome through integration.
+		</member>
+		<member name="p_gain" type="Variant" setter="set_p_gain" getter="get_p_gain" default="0">
+			The proportinal gain.  Can be a float, Vector2, Vector3, or Vector4 depending on the value of [member state_length].  Tuning this gain will determine the response strength in relation to the amount of error present.  The higher the number (and error value), the faster the controller will accelerate the controlled value toward its goal.
+		</member>
+		<member name="state_length" type="int" setter="set_state_length" getter="get_state_length" enum="PID.StateLength" default="3">
+			Determines what variable length the PID controller will be controlling.  Setting this changes the variant type of the gains to match.
+		</member>
+	</members>
+	<constants>
+		<constant name="SCALAR" value="3" enum="StateLength">
+			The variable being controlled is a single element float.
+		</constant>
+		<constant name="VECTOR2" value="5" enum="StateLength">
+			The variable being controlled is a Vector2.
+		</constant>
+		<constant name="VECTOR3" value="9" enum="StateLength">
+			The variable being controlled is a Vector3.
+		</constant>
+		<constant name="VECTOR4" value="12" enum="StateLength">
+			The variable being controlled is a Vector4.
+		</constant>
+	</constants>
+</class>
