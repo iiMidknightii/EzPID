@@ -16,5 +16,7 @@ mono_crash.*.json
 
 # GDExtension ignores
 *.obj
+*.os
 .sconsign.dblite
 ~*
+.vscode/

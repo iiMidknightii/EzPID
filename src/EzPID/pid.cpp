@@ -25,7 +25,7 @@ Variant PID::get_zero() const {
 }
 
 bool PID::is_correct_length(const Variant &p_value) const {
-    return p_value.get_type() == state_length;
+    return p_value.get_type() == Variant::Type(state_length);
 }
 
 void PID::set_state_length(StateLength p_length) {
