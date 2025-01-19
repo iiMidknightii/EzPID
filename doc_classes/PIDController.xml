@@ -9,7 +9,6 @@
 		[b]NOTE:[/b] This node has internal state variables that update every time [method update_state] or [method calculate_control_output] are called.  It is important to use those methods consistently on only one state variable at a time, else the internal state may become invalid and give poor results.
 	</description>
 	<tutorials>
-		[url=https://en.wikipedia.org/wiki/Proportional%E2%80%93integral%E2%80%93derivative_controller]Here's a good article detailing PID controllers[url]
 	</tutorials>
 	<methods>
 		<method name="_integrate_state" qualifiers="virtual">

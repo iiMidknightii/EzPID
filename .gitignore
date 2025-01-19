@@ -14,9 +14,10 @@ export_presets.cfg
 data_*/
 mono_crash.*.json
 
-# GDExtension ignores
 *.obj
 *.os
-.sconsign.dblite
 ~*
-.vscode/
+.vscode
+*.dblite
+addons.zip
+tmp.log

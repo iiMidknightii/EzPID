@@ -7,7 +7,6 @@
 		This class contains the gains for Proportional, Integral, Derivative controllers.  The gains can be saved separately as their own resource so they may be reused between different controllers.
 	</description>
 	<tutorials>
-		[url=https://en.wikipedia.org/wiki/Proportional%E2%80%93integral%E2%80%93derivative_controller]Article about PID controller basics.[/url]
 	</tutorials>
 	<members>
 		<member name="d_gain" type="Variant" setter="set_d_gain" getter="get_d_gain" default="0">
