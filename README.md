@@ -17,8 +17,8 @@ Just add a `PIDController` node to your scene, select a node/property to control
 > [!TIP]
 > You can enable the PID controller in the editor if you want to use it for editor plugins or nodes that need to run in @tool mode.
 
-## Tagged Releases
-* 1.0 - intial release, targets godot-4.3
+## Latest Release
+* 1.0.2 - Fixed build system
 
 ## Contributing
 Feel free to leave any feedback, bug reports, and contributions to the repository at [https://github.com/iiMidknightii/EzPID](https://github.com/iiMidknightii/EzPID).
