@@ -1,82 +1,97 @@
-#ifndef PID_CONTROLLER_H
-#define PID_CONTROLLER_H
+#pragma once
 
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/templates/hash_map.hpp>
 #include <godot_cpp/core/gdvirtual.gen.inc>
-#include "pid.hpp"
 
-namespace godot::ez_pid {
+namespace godot {
 
 class PIDController : public Node {
     GDCLASS(PIDController, Node)
 
 public:
-    enum ProcessMethod {
+    
+    enum UpdateMethod {
         PID_PROCESS_PHYSICS,
         PID_PROCESS_IDLE,
+        PID_PROCESS_PHYSICS_TOOL,
+        PID_PROCESS_IDLE_TOOL,
         PID_PROCESS_MANUAL,
+        PID_PROCESS_NONE,
+    };
+    enum ControlMethod {
+        PID_CONTROL_AUTO_PROPERTY,
+        PID_CONTROL_USER_SCRIPT,
+    };
+    enum StateLength {
+        SCALAR = Variant::FLOAT,
+        VECTOR2 = Variant::VECTOR2,
+        VECTOR3 = Variant::VECTOR3,
+        VECTOR4 = Variant::VECTOR4,
     };
 
-    void set_update_method(ProcessMethod p_method);
-    ProcessMethod get_update_method() const;
+    ~PIDController() override;
 
-    void set_pid(const Ref<PID> &p_pid);
-    Ref<PID> get_pid() const;
+    void set_p_gain(const Variant &p_p);
+    Variant get_p_gain() const;
+
+    void set_i_gain(const Variant &p_i);
+    Variant get_i_gain() const;
+
+    void set_d_gain(const Variant &p_d);
+    Variant get_d_gain() const;
 
     void set_value_is_angle(bool p_is_angle);
     bool get_value_is_angle() const;
 
-    void set_prevent_overshoot(bool p_prevent);
+    void enable_overshoot_prevention(bool p_prevent);
     bool is_preventing_overshoot() const;
 
-    void set_prevent_derivative_kick(bool p_prevent);
-    bool is_preventing_derivative_kick() const;
-
-    void enable_error_integration_limit(bool p_enable);
-    bool is_limiting_error_integration() const;
-
-    void set_error_integration_limit(const Variant &p_limit);
-    Variant get_error_integration_limit() const;
-
-    void set_error_integration_decay(double p_decay);
-    double get_error_integration_decay() const;
-
-    void enable_control_output_limit(bool p_enable);
-    bool is_limiting_control_output() const;
+    void enable_kick_prevention(bool p_prevent);
+    bool is_preventing_kick() const;
 
     void set_control_output_limit(const Variant &p_limit);
     Variant get_control_output_limit() const;
 
-    void set_run_in_editor(bool p_run);
-    bool get_run_in_editor() const;
+    void set_error_accumulation_limit(const Variant &p_limit);
+    Variant get_error_accumulation_limit() const;
+    
+    void set_error_accumulation_decay(double p_decay);
+    double get_error_accumulation_decay() const;
 
-    void set_controlled_node(Node *p_node);
-    Node *get_controlled_node() const;
+    void set_target(const Variant &p_target);
+    Variant get_target() const;
+
+    void set_state_length(StateLength p_length);
+    StateLength get_state_length() const;
+
+    void set_update_method(UpdateMethod p_method);
+    UpdateMethod get_update_method() const;
+
+    void set_control_method(ControlMethod p_method);
+    ControlMethod get_control_method() const;
+
+    // Auto controlled properties
+    void set_controlled_node(NodePath p_node);
+    NodePath get_controlled_node() const;
 
     void set_controlled_property(const StringName &p_name);
     StringName get_controlled_property() const;
+    //
 
-    void set_target_value(const Variant &p_val);
-    Variant get_target_value() const;
-
-    void set_value(const Variant &p_value);
-    Variant get_value() const;
-    void set_value_dot(const Variant &p_value_dot);
-    Variant get_value_dot() const;
     Variant get_error() const;
-    Variant get_sum_error() const;
+    Variant get_accumulated_error() const;
+    void reset_accumulated_error();
+    void reset_state();
 
-    Variant calculate_control_output(const Variant &p_value, const Variant &p_target, double p_delta);
-    Variant update_state(const Variant &p_value, const Variant &p_target, double p_delta);
-    void reset();
+    Variant calculate_control_output(const Variant &p_value, double p_delta);
+    void advance(double p_delta);
 
-    GDVIRTUAL1(_integrate_state, double)
+    GDVIRTUAL1(_update_state, double)
+    
+    PackedStringArray _get_configuration_warnings() const override;
 
 protected:
-    void _get_property_list(List<PropertyInfo> *p_list) const;
-    bool _get(const StringName &p_prop, Variant &r_ret) const;
-    bool _set(const StringName &p_prop, const Variant &p_value);
     bool _property_can_revert(const StringName &p_prop) const;
     bool _property_get_revert(const StringName &p_prop, Variant &r_ret) const;
     void _validate_property(PropertyInfo &p_prop) const;
@@ -84,43 +99,74 @@ protected:
     static void _bind_methods();
 
 private:
-    ProcessMethod process_method = ProcessMethod::PID_PROCESS_PHYSICS;
+    using PropertyCache = HashMap<String, StateLength>;
 
-    Ref<PID> pid;
+    const Vector<StringName> VARIABLE_PROPS {
+        "p_gain",
+        "i_gain",
+        "d_gain",
+        "control_output_limit",
+        "error_accumulation_limit",
+        "target",
+        "error",
+        "accumulated_error",
+    };
+    const Vector<StringName> LIMIT_PROPS {"control_output_limit", "error_accumulation_limit"};
+    const Vector<StringName> ANGLE_PROPS {
+        "error_accumulation_limit",
+        "target",
+        "error",
+        "accumulated_error",
+    };
+    const Vector<StringName> AUTO_PROPS {"controlled_node", "controlled_property", "prevent_overshoot"};
+    const Vector<StringName> SCRIPT_PROPS {"state_length"};
+    const Vector<StringName> READ_PROPS {"error", "accumulated_error"};
 
-    bool enable_controller = true;
+    StateLength state_length = SCALAR;
+    enum StateLengthValidation {
+        STATE_LENGTH_UNVALIDATED, 
+        STATE_LENGTH_VALIDATED, 
+        STATE_LENGTH_WARNING_EMITTED,
+    } state_length_validation = STATE_LENGTH_UNVALIDATED;
+
+    Variant p_gain = 0.0;
+    Variant i_gain = 0.0;
+    Variant d_gain = 0.0;
+
+    UpdateMethod process_method = PID_PROCESS_PHYSICS;
+
     bool value_is_angle = false;
-    bool preventing_overshoot = false;
-    bool preventing_derivative_kick = false;
-    bool run_in_editor = false;
-    bool limiting_error_sum = false;
-    Variant error_sum_limit = -1;
-    double error_sum_decay = 0;
-    bool limiting_control = false;
+    bool overshoot_prevent_enabled = false;
+    bool kick_prevent_enabled = false;
+    Variant error_accumulation_limit = -1;
+    double error_accum_decay = 0;
     Variant control_limit = -1;
 
-    bool is_controlling_node = false;
-    Node *controlled_node = nullptr;
-    Dictionary cached_properties;
+    ControlMethod control_method = PID_CONTROL_AUTO_PROPERTY;
+    NodePath controlled_node;
     String controlled_property;
-
-    Variant value = 0;
-    Variant value_dot = 0;
-    Variant target = 0;
-    Variant target_prev = 0;
-    Variant error_prev = 0;
-    Variant error_sum = 0;
-
+    
+    Variant zero              = 0.0;
+    Variant target            = 0.0;
+    Variant prev_value        = 0.0;
+    Variant prev_target       = 0.0;
+    Variant prev_error        = 0.0;
+    Variant accumulated_error = 0.0;
+    
+    Node *cached_node = nullptr;
+    PropertyCache cached_controlled_properties;
+    
+    bool _is_valid_variant(const Variant &p_value) const;
+    bool _validate_state_length();
+    void _update_process_modes();
     void _update_state_length();
-    Variant _eval_variant(Variant::Operator p_op, const Variant &p_a, const Variant &p_b) const;
-    Variant _get_angular_difference(const Variant &p_value1, const Variant &p_value2) const;
-    Variant _limit(const Variant &p_value, const Variant &p_limit) const;
-    double _get_magnitude(const Variant &p_value) const;
-    void _on_pid_property_list_changed();
+    void _advance(double p_delta);
+    void _setup_node_control();
+    Node *_get_controlled_node();
 };
 
 }
 
-VARIANT_ENUM_CAST(ez_pid::PIDController::ProcessMethod);
-
-#endif
+VARIANT_ENUM_CAST(PIDController::UpdateMethod);
+VARIANT_ENUM_CAST(PIDController::ControlMethod);
+VARIANT_ENUM_CAST(PIDController::StateLength);

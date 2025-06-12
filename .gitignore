@@ -21,3 +21,7 @@ mono_crash.*.json
 *.dblite
 addons.zip
 tmp.log
+*.pdb
+*template_debug.dev.*
+.cache/*
+compile_commands.json

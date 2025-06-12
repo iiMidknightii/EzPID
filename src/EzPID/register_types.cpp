@@ -11,8 +11,7 @@ void initialize_pid(ModuleInitializationLevel p_level) {
 		return;
 	}
 
-    GDREGISTER_CLASS(ez_pid::PID);
-    GDREGISTER_CLASS(ez_pid::PIDController);
+    GDREGISTER_CLASS(PIDController);
 }
 
 void uninitialize_pid(ModuleInitializationLevel p_level) {

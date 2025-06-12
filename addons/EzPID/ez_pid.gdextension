@@ -12,7 +12,7 @@ ios.debug = "res://addons/EzPID/bin/ez_pid.ios.template_debug.xcframework"
 ios.release = "res://addons/EzPID/bin/ez_pid.ios.template_release.xcframework"
 windows.debug.x86_32 = "res://addons/EzPID/bin/ez_pid.windows.template_debug.x86_32.dll"
 windows.release.x86_32 = "res://addons/EzPID/bin/ez_pid.windows.template_release.x86_32.dll"
-windows.debug.x86_64 = "res://addons/EzPID/bin/ez_pid.windows.template_debug.x86_64.dll"
+windows.debug.x86_64 = "res://addons/EzPID/bin/ez_pid.windows.template_debug.dev.x86_64.dll"
 windows.release.x86_64 = "res://addons/EzPID/bin/ez_pid.windows.template_release.x86_64.dll"
 linux.debug.x86_64 = "res://addons/EzPID/bin/libez_pid.linux.template_debug.x86_64.so"
 linux.release.x86_64 = "res://addons/EzPID/bin/libez_pid.linux.template_release.x86_64.so"
@@ -34,5 +34,4 @@ ios.release = {
 }
 
 [icons]
-PID = "res://addons/EzPID/icons/PID.svg"
 PIDController = "res://addons/EzPID/icons/PIDController.svg"

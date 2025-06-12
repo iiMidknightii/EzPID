@@ -4,111 +4,131 @@
 		A generalized PID controller node.
 	</brief_description>
 	<description>
-		This node implements a generic Proportional, Integral, Derivative controller to update another Node's property to reach a target.  It contains a [PID] resource for tuning the gains of the controller.  It can update the property in the idle frame, physics frame, or manually.  If updating manually, you cannot control a node/property combination automatically.  Instead, pass whatever values you want into [method update_state] yourself.  You can inject your own state dynamics integration overriding [method _integrate_state], which is called at the start of [method update_state] automatically.  Alternatively, you can roll your own state integration entirely by only using [method calculate_control_output] in your own scripts.
+		This node implements a generic Proportional, Integral, Derivative controller to drive a state to reach a target.
 
-		[b]NOTE:[/b] This node has internal state variables that update every time [method update_state] or [method calculate_control_output] are called.  It is important to use those methods consistently on only one state variable at a time, else the internal state may become invalid and give poor results.
+		If [member control_method] is set to [enum PIDController.ControlMethod.PID_CONTROL_AUTO_PROPERTY], the controller will automatically update a property of [member controlled_node] to drive it towards [member target].  The property must be specified in [member controlled_property].
+		If [member control_method] is set to [enum PIDController.ControlMethod.PID_CONTROL_USER_SCRIPT], the user must call [method calculate_control_output] in their own scripts to get the control output and apply it to any arbitrary state variable they choose.
 	</description>
 	<tutorials>
 	</tutorials>
 	<methods>
-		<method name="_integrate_state" qualifiers="virtual">
+		<method name="advance">
 			<return type="void" />
 			<param index="0" name="delta" type="float" />
 			<description>
-				Overriding this method will inject your own state integration at the start of each [method update_state] call.  You can update [member target_value] or apply forces/accelerations to [member value] and [member value_dot] (such as gravity).
+				Advances the controller's state by [param delta] seconds.  This is called automatically by the engine when [member update_method] is set to [enum PIDController.UpdateMethod.PID_PROCESS_PHYSICS] or [enum PIDController.UpdateMethod.PID_PROCESS_IDLE].  If [member update_method] is set to [enum PIDController.UpdateMethod.PID_PROCESS_MANUAL], the user must call this method in their own scripts.
 			</description>
 		</method>
 		<method name="calculate_control_output">
 			<return type="Variant" />
-			<param index="0" name="current_value" type="Variant" />
-			<param index="1" name="target_value" type="Variant" />
-			<param index="2" name="delta" type="float" />
+			<param index="0" name="updated_value" type="Variant" />
+			<param index="1" name="delta" type="float" />
 			<description>
-				Returns the PID controller's output to drive [param current_value] to [param target_value].  It does not apply the result to [member value] or [member value_dot].  [param delta] should be the elapsed time since the method was previously called.
+				Returns the PID controller's output to drive [param state_value] to [member target].  This method is automatically called when [member control_method] is [enum PIDController.ControlMethod.PID_CONTROL_AUTO_PROPERTY].  [param delta] should be the elapsed time since the method was previously called.
 			</description>
 		</method>
-		<method name="reset">
+		<method name="reset_accumulated_error">
 			<return type="void" />
 			<description>
-				Sets the internal state back to zero.
+				Resets the accumulated error to zero.  This is helpful if you have a buildup of error that can cause overshoot due to the integral term.
 			</description>
 		</method>
-		<method name="update_state">
-			<return type="Variant" />
-			<param index="0" name="current_value" type="Variant" />
-			<param index="1" name="target_value" type="Variant" />
-			<param index="2" name="delta" type="float" />
+		<method name="reset_state">
+			<return type="void" />
 			<description>
-				Returns the updated state variable (equivalent to [member value]) after running [method _integrate_state] and using [method calculate_control_output] to drive [member current_value] towards [member target_value].  [param delta] should be the elapsed time since the method was previously called.
+				Resets the controller's state to zero.  This is useful if you want to reset the controller without changing the target.
 			</description>
 		</method>
 	</methods>
 	<members>
-		<member name="control_output_limit" type="Variant" setter="set_control_output_limit" getter="get_control_output_limit">
-			If [member control_output_limit_enabled] is true, this is the maximum control value returned by [method calculate_control_output].
+		<member name="accumulated_error" type="Variant" setter="" getter="get_accumulated_error" default="0.0">
+			(Read-only) The accumulated error calculated during the last call to [method calculate_control_output].  This is used for the integral term of the PID controller.
 		</member>
-		<member name="control_output_limit_enabled" type="bool" setter="enable_control_output_limit" getter="is_limiting_control_output">
-			If true, the output returned by [method calculate_control_output] will be limited to the value held in [member control_output_limit].
+		<member name="control_method" type="int" setter="set_control_method" getter="get_control_method" enum="PIDController.ControlMethod" default="0">
+			Determines how the controller will be used.  See [enum ControlMethod].
 		</member>
-		<member name="controlled_node" type="Node" setter="set_controlled_node" getter="get_controlled_node">
-			The node that will have a property controlled by the PID controller.
+		<member name="control_output_limit" type="Variant" setter="set_control_output_limit" getter="get_control_output_limit" default="-1">
+			This is the maximum control value returned by [method calculate_control_output].
 		</member>
-		<member name="controlled_property" type="StringName" setter="set_controlled_property" getter="get_controlled_property">
-			The property that will be updated. Must be a property name of [member controlled_node].
+		<member name="controlled_node" type="NodePath" setter="set_controlled_node" getter="get_controlled_node" default="NodePath(&quot;&quot;)">
+			The node that will have a property controlled by the PID controller in [enum ControlMethod.PID_CONTROL_AUTO_PROPERTY] mode.  This node must have a property with the name specified in [member controlled_property].
 		</member>
-		<member name="error" type="Variant" setter="" getter="get_error">
-			The error calculated during the last call to [method calculate_control_output].
+		<member name="controlled_property" type="StringName" setter="set_controlled_property" getter="get_controlled_property" default="&amp;&quot;&quot;">
+			The property that will be updated in [enum ControlMethod.PID_CONTROL_AUTO_PROPERTY] mode. Must be a property name of [member controlled_node].
 		</member>
-		<member name="error_integration_decay" type="float" setter="set_error_integration_decay" getter="get_error_integration_decay">
-			An exponential decay constant applied to the integrated error sum.  Setting this to a non-zero number will cause accumulated error to slowly decay over time, preventing large initial errors from causing integral windup.
+		<member name="d_gain" type="Variant" setter="set_d_gain" getter="get_d_gain" default="0.0">
+			The derivative gain of the PID controller.  This is used to damp the response of the controller.
 		</member>
-		<member name="error_integration_limit" type="Variant" setter="set_error_integration_limit" getter="get_error_integration_limit">
-			If [member error_integration_limit_enabled] is true, this is the maximum the error can be accumulated and applied with the integral term.
+		<member name="error" type="Variant" setter="" getter="get_error" default="0.0">
+			(Read-only) The error calculated during the last call to [method calculate_control_output].
 		</member>
-		<member name="error_integration_limit_enabled" type="bool" setter="enable_error_integration_limit" getter="is_limiting_error_integration">
-			If true, the integral term of the PID controller will be limited to the value in [member error_integration_limit].
+		<member name="error_accumulation_decay" type="float" setter="set_error_accumulation_decay" getter="get_error_accumulation_decay" default="0.0">
+			The decay rate of the accumulated error.  This is used to reduce the effect of accumulated error over time.  A value of 0.0 means no decay.
 		</member>
-		<member name="pid_gains" type="PID" setter="set_pid" getter="get_pid">
-			The [PID] resource for tuning the gains of the controller.
+		<member name="error_accumulation_limit" type="Variant" setter="set_error_accumulation_limit" getter="get_error_accumulation_limit" default="-1">
+			The maximum value of the accumulated error.  If the accumulated error exceeds this value, it will be clamped to this value.  A value of -1 means no limit.
 		</member>
-		<member name="prevent_derivative_kick" type="bool" setter="set_prevent_derivative_kick" getter="is_preventing_derivative_kick" default="false">
-			When set to true, large changes in [member target_value] will be canceled out in the controller.  This prevents sudden jumps in control output, at the cost of making the controller slightly less responsive to changes in [member target_value].  It is best to enable this if [member target_value] will be updated in large discrete steps, and disable it if the target will change continuously.
+		<member name="i_gain" type="Variant" setter="set_i_gain" getter="get_i_gain" default="0.0">
+			The integral gain of the PID controller.  This is used to accumulate the error over time to drive the state towards the target in the face of persistent disturbances.
 		</member>
-		<member name="prevent_overshoot" type="bool" setter="set_prevent_overshoot" getter="is_preventing_overshoot" default="false">
-			When set to true, the controller will recognize overshoot, set [member value] to [member target_value], and set [member value_dot] to zero.
+		<member name="p_gain" type="Variant" setter="set_p_gain" getter="get_p_gain" default="0.0">
+			The proportional gain of the PID controller.  This is used to drive the state towards the target based on the current error.
 		</member>
-		<member name="run_in_editor" type="bool" setter="set_run_in_editor" getter="get_run_in_editor" default="false">
-			Allows the controller to update the node in the editor.
-			[b]NOTE:[/b] [method _integrate_state] will need to be overridden in a [code]@tool[/code] script for it to work in the editor.
+		<member name="prevent_kick" type="bool" setter="enable_kick_prevention" getter="is_preventing_kick" default="false">
+			When set to true, the controller will decrease the contribution of the derivative term if the target is changing quickly.  This prevents "kicks" in the output when the error changes suddenly due to a shifting target.
 		</member>
-		<member name="sum_error" type="Variant" setter="" getter="get_sum_error">
-			The running total error that has been integrated since the controller was started.
+		<member name="prevent_overshoot" type="bool" setter="enable_overshoot_prevention" getter="is_preventing_overshoot" default="false">
+			When [member control_method] is set to [enum PIDController.ControlMethod.PID_CONTROL_AUTO_PROPERTY], this will prevent the controller from overshooting the target by clamping the output to the target value.  This is useful for preventing oscillations in the controlled property.
 		</member>
-		<member name="target_value" type="Variant" setter="set_target_value" getter="get_target_value">
-			The desired final state value.
+		<member name="state_length" type="int" setter="set_state_length" getter="get_state_length" enum="PIDController.StateLength">
+			When [member control_method] is set to [enum PIDController.ControlMethod.PID_CONTROL_USER_SCRIPT], this determines the length of the state vector that will be passed to [method calculate_control_output].  See [enum StateLength].
 		</member>
-		<member name="update_method" type="int" setter="set_update_method" getter="get_update_method" enum="PIDController.ProcessMethod" default="0">
-			Determines when the controller runs.  See [enum ProcessMethod].
+		<member name="target" type="Variant" setter="set_target" getter="get_target" default="0.0">
+			The target value that the controller will try to reach.  This is the desired state value that the controller will drive towards.
 		</member>
-		<member name="value" type="Variant" setter="set_value" getter="get_value">
-			The state variable value.  Could be the value of the [member controlled_node] [member controlled_property] if set.
-		</member>
-		<member name="value_dot" type="Variant" setter="set_value_dot" getter="get_value_dot">
-			The derivative (velocity) of the state variable value.
+		<member name="update_method" type="int" setter="set_update_method" getter="get_update_method" enum="PIDController.UpdateMethod" default="0">
+			Determines when the controller runs when in [enum PIDController.ControlMethod.PID_CONTROL_AUTO_PROPERTY] mode.  See [enum UpdateMethod].
 		</member>
 		<member name="value_is_angle" type="bool" setter="set_value_is_angle" getter="get_value_is_angle" default="false">
-			If true, [member value] is treated like an angle and wraps between zero and [code]TAU[/code].
+			If true, all state variables are treated like angles and wrapped between zero and [code]TAU[/code].
 		</member>
 	</members>
 	<constants>
-		<constant name="PID_PROCESS_PHYSICS" value="0" enum="ProcessMethod">
+		<constant name="PID_PROCESS_PHYSICS" value="0" enum="UpdateMethod">
 			When [member update_method] is set to this, the controller will attempt to update the node's property every physics frame.
 		</constant>
-		<constant name="PID_PROCESS_IDLE" value="1" enum="ProcessMethod">
+		<constant name="PID_PROCESS_IDLE" value="1" enum="UpdateMethod">
 			When [member update_method] is set to this, the controller will attempt to update the node's property every idle (process) frame.
 		</constant>
-		<constant name="PID_PROCESS_MANUAL" value="2" enum="ProcessMethod">
-			When [member update_method] is set to this, the controller will not attempt automatic updates.  Instead, the user must call [method update_state] in their own scripts.
+		<constant name="PID_PROCESS_PHYSICS_TOOL" value="2" enum="UpdateMethod">
+			When [member update_method] is set to this, the controller will attempt to update the node's property every physics frame, even in the editor. This is useful for tools that need to visualize the controller's behavior in the editor.
+		</constant>
+		<constant name="PID_PROCESS_IDLE_TOOL" value="3" enum="UpdateMethod">
+			When [member update_method] is set to this, the controller will attempt to update the node's property every idle (process) frame, even in the editor. This is useful for tools that need to visualize the controller's behavior in the editor.
+		</constant>
+		<constant name="PID_PROCESS_MANUAL" value="4" enum="UpdateMethod">
+			When [member update_method] is set to this, the controller will not attempt automatic updates.  Instead, the user must call [method advance] in their own scripts.
+		</constant>
+		<constant name="PID_PROCESS_NONE" value="5" enum="UpdateMethod">
+			When [member update_method] is set to this, the controller will not attempt automatic updates and will respond [method advance] calls.  This is useful to "pause" the controller without losing its state.
+		</constant>
+		<constant name="PID_CONTROL_AUTO_PROPERTY" value="0" enum="ControlMethod">
+			When [member control_method] is set to this, the controller will automatically update a property of [member controlled_node] to drive it towards [member target].  The property must be specified in [member controlled_property].
+		</constant>
+		<constant name="PID_CONTROL_USER_SCRIPT" value="1" enum="ControlMethod">
+			When [member control_method] is set to this, the user must call [method calculate_control_output] in their own scripts to get the control output and apply it to any arbitrary state variable they choose.
+		</constant>
+		<constant name="SCALAR" value="3" enum="StateLength">
+			When [member state_length] is set to this, the state vector will be a single scalar value.
+		</constant>
+		<constant name="VECTOR2" value="5" enum="StateLength">
+			When [member state_length] is set to this, the state vector will be a 2D vector with 2 components.
+		</constant>
+		<constant name="VECTOR3" value="9" enum="StateLength">
+			When [member state_length] is set to this, the state vector will be a 3D vector with 3 components.
+		</constant>
+		<constant name="VECTOR4" value="12" enum="StateLength">
+			When [member state_length] is set to this, the state vector will be a 4D vector with 4 components.
 		</constant>
 	</constants>
 </class>

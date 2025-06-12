@@ -1,27 +1,22 @@
-[gd_scene load_steps=3 format=3 uid="uid://dquitovi2l4xs"]
+[gd_scene load_steps=2 format=3 uid="uid://dquitovi2l4xs"]
 
-[ext_resource type="Script" path="res://tests/pid_with_gravity.gd" id="1_qq2ve"]
+[ext_resource type="Script" uid="uid://cnr4r52ps7r3f" path="res://tests/pid_with_gravity.gd" id="1_yggfj"]
 
-[sub_resource type="PID" id="PID_2xeml"]
-state_length = 9
-integration_enabled = true
-p_gain = Vector3(12, 12, 12)
-i_gain = Vector3(2, 2, 2)
-d_gain = Vector3(8, 8, 8)
+[node name="RigidBody3D" type="RigidBody3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.08152, -0.0046707, 3.91177)
+constant_force = Vector3(-2.1991, -0.0983554, 4.63204)
 
-[node name="PIDController" type="PIDController" node_paths=PackedStringArray("controlled_node")]
-pid_gains = SubResource("PID_2xeml")
-error_integration_limit_enabled = false
-error_integration_decay = 0.1
-control_output_limit = Vector3(0, 0, 0)
-prevent_derivative_kick = true
-run_in_editor = true
-controlled_node = NodePath("Marker3D")
+[node name="PIDController" type="PIDController" parent="."]
+update_method = 2
+controlled_node = NodePath("..")
 controlled_property = &"position"
-target_value = Vector3(-2.7909, 0, -4.1486)
-update_method = 1
-script = ExtResource("1_qq2ve")
+target = Vector3(-1.75267, 0, 4.68275)
+p_gain = Vector3(32, 32, 32)
+i_gain = Vector3(8, 8, 8)
+d_gain = Vector3(24, 24, 24)
+control_output_limit = Vector3(0, 0, 0)
+error_accumulation_limit = Vector3(0, 0, 0)
+script = ExtResource("1_yggfj")
 
 [node name="Marker3D" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.03341, -0.317813, -3.69373)
-gizmo_extents = 5.0
+gizmo_extents = 3.25
