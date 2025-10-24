@@ -103,7 +103,8 @@ Variant PIDController::get_control_output_limit() const {
 }
 
 void PIDController::set_state_length(StateLength p_length) {
-    ERR_FAIL_COND(p_length != SCALAR || p_length != VECTOR2 || p_length != VECTOR3 || p_length != VECTOR4);
+    ERR_FAIL_COND_MSG(p_length != SCALAR && p_length != VECTOR2 && p_length != VECTOR3 && p_length != VECTOR4,
+        "Invalid state length value");
 
     if (p_length != state_length) {
         state_length = p_length;
@@ -820,7 +821,7 @@ void PIDController::_advance(double p_delta) {
         } break;
 
         case PID_CONTROL_USER_SCRIPT: {
-            GDVIRTUAL_REQUIRED_CALL(_update_state, p_delta);
+            GDVIRTUAL_CALL(_update_state, p_delta);
         } break;
     }
 }

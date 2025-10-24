@@ -1,20 +1,18 @@
 #!/usr/bin/bash
-exec > "tmp.log" 2>&1
-
 rm -f addons.zip
 
 scons
-../Godot.exe --doctool ./ --gdextension-docs
+godot --doctool ./ --gdextension-docs
 scons target=template_debug
 scons target=template_release
-wsl -e scons target=template_debug
-wsl -e scons target=template_release
+scons target=template_debug platform=windows
+scons target=template_release platform=windows
 
 rm -f addons/*/bin/~*.TMP
-cp LICENSE README.md addons/
+cp LICENSE README.md addons/EzPID
 
 prev_dir=$(basename $PWD)
 cd ..
-wsl zip -9 -r "$prev_dir/addons.zip" "$prev_dir/addons/"
+zip -9 -r "$prev_dir/addons.zip" "$prev_dir/addons/"
 cd "$prev_dir"
-rm -f addons/README.md addons/LICENSE
+rm -f addons/EzPID/README.md addons/EzPID/LICENSE
